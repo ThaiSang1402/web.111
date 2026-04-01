@@ -1,39 +1,43 @@
 # Load Balancer & Monitoring Project
 
 ## Architecture
-- **Load Balancer**: Nginx distributing traffic across 2 Node.js instances
-- **Monitoring**: Prometheus + Grafana for metrics and visualization
+- **Node.js Application** with built-in load balancing simulation
+- **Monitoring**: Prometheus metrics endpoint
+- **Simple Deployment**: No Docker needed
 
 ## Local Development
 
 ### Prerequisites
-- Docker and Docker Compose installed
+- Node.js installed
 
 ### Run the application
 ```bash
-docker-compose up --build
+cd app
+npm install
+npm start
 ```
 
 ### Access Points
-- Application: http://localhost
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3001 (admin/admin123)
+- Application: http://localhost:3000
+- Health check: http://localhost:3000/health
+- Metrics: http://localhost:3000/metrics
 
-### Test Load Balancing
+### Test Load Balancing Simulation
 ```bash
-# Multiple requests to see different instances
-curl http://localhost/
-curl http://localhost/load
+# Multiple requests to see different responses
+curl http://localhost:3000/
+curl http://localhost:3000/load
 ```
 
 ## Render Deployment
 
-1. Connect your GitHub repo to Render
-2. Create a new Web Service
-3. Use Docker environment
-4. Set Dockerfile path to `./app/Dockerfile`
+### Simple Node.js Deployment
+1. Push code to GitHub
+2. Connect repository to Render
+3. Render automatically detects `render.yaml`
+4. Deploy with Node.js runtime
 
-### Environment Variables for Render
+### Environment Variables
 - `NODE_ENV=production`
 - `PORT=10000` (Render's default)
 
@@ -47,7 +51,15 @@ node test-system.js
 ### Web Interface
 Open `demo.html` in your browser for interactive testing
 
-## Health Checks
-- App health: `/health`
-- Load test: `/load`
-- Metrics: `/metrics`
+## Features
+- ✅ Load balancing simulation
+- ✅ Health checks
+- ✅ Prometheus metrics
+- ✅ Simple Node.js deployment
+- ✅ No Docker complexity
+
+## Endpoints
+- `/` - Main application with instance info
+- `/health` - Health check
+- `/load` - CPU load test
+- `/metrics` - Prometheus metrics
