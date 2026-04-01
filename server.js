@@ -984,8 +984,9 @@ app.listen(PORT, () => {
   console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`🏥 Health: http://localhost:${PORT}/health`);
   console.log(`⚡ Load Test: http://localhost:${PORT}/load`);
-});/
-/ AI API Simulation endpoint
+});
+
+// AI API Simulation endpoint
 app.get('/api/ai', (req, res) => {
   const query = req.query.q || 'Hello';
   const aiResponse = simulateAIResponse(query);
