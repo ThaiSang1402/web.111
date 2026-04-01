@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: load-balancer-app
+    runtime: docker
+    dockerfilePath: ./app/Dockerfile
+    dockerContext: ./app
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    scaling:
+      minInstances: 2
+      maxInstances: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

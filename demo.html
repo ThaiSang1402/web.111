@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load Balancer Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .results {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .instance-a { color: #28a745; }
+        .instance-b { color: #dc3545; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Load Balancer Demo</h1>
+            <p>Hệ thống cân bằng tải với 2 instance</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Requests</h3>
+                <div id="totalRequests">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Instance A</h3>
+                <div id="instanceA">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Instance B</h3>
+                <div id="instanceB">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg Response Time</h3>
+                <div id="avgTime">0ms</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Test Load Balancing</h3>
+            <p>Nhấn nút để gửi request và xem hệ thống phân phối tải:</p>
+            <button class="button" onclick="sendRequest()">Gửi 1 Request</button>
+            <button class="button" onclick="sendMultipleRequests(5)">Gửi 5 Requests</button>
+            <button class="button" onclick="sendMultipleRequests(10)">Gửi 10 Requests</button>
+            <button class="button" onclick="clearResults()">Clear</button>
+            <div id="results" class="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔥 Test CPU Load</h3>
+            <p>Test khả năng xử lý tải nặng:</p>
+            <button class="button" onclick="testCPULoad(1000000)">Light Load (1M)</button>
+            <button class="button" onclick="testCPULoad(5000000)">Heavy Load (5M)</button>
+            <div id="cpuResults" class="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>⚡ Circuit Breaker Test</h3>
+            <p>Test khả năng chịu lỗi của hệ thống:</p>
+            <button class="button" onclick="testCircuitBreaker()">Test Circuit Breaker</button>
+            <div id="circuitResults" class="results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        let stats = {
+            total: 0,
+            instanceA: 0,
+            instanceB: 0,
+            responseTimes: []
+        };
+
+        async function sendRequest() {
+            const start = Date.now();
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                const data = await response.json();
+                const responseTime = Date.now() - start;
+                
+                updateStats(data.instance, responseTime);
+                displayResult('results', `✅ ${data.instance}: ${data.message} (${responseTime}ms)`, data.instance);
+            } catch (error) {
+                displayResult('results', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendMultipleRequests(count) {
+            displayResult('results', `🚀 Sending ${count} requests...`, 'info');
+            
+            for (let i = 0; i < count; i++) {
+                await sendRequest();
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        async function testCPULoad(iterations) {
+            displayResult('cpuResults', `🔥 Testing CPU load with ${iterations.toLocaleString()} iterations...`, 'info');
+            
+            const start = Date.now();
+            try {
+                const response = await fetch(`${API_BASE}/cpu-intensive?iterations=${iterations}`);
+                const data = await response.json();
+                const totalTime = Date.now() - start;
+                
+                displayResult('cpuResults', 
+                    `✅ ${data.instance}: Completed in ${data.duration} (total: ${totalTime}ms)\\n` +
+                    `   Iterations: ${data.iterations.toLocaleString()}\\n` +
+                    `   Result: ${data.result}`, 
+                    data.instance
+                );
+            } catch (error) {
+                displayResult('cpuResults', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCircuitBreaker() {
+            displayResult('circuitResults', '⚡ Testing circuit breaker (10% error rate)...', 'info');
+            
+            for (let i = 1; i <= 10; i++) {
+                try {
+                    const response = await fetch(`${API_BASE}/circuit-breaker`);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        displayResult('circuitResults', `✅ Request ${i}: ${data.message} (${data.instance})`, data.instance);
+                    } else {
+                        displayResult('circuitResults', `❌ Request ${i}: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    displayResult('circuitResults', `❌ Request ${i}: ${error.message}`, 'error');
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+
+        function updateStats(instance, responseTime) {
+            stats.total++;
+            stats.responseTimes.push(responseTime);
+            
+            if (instance === 'app1') stats.instanceA++;
+            if (instance === 'app2') stats.instanceB++;
+            
+            document.getElementById('totalRequests').textContent = stats.total;
+            document.getElementById('instanceA').textContent = stats.instanceA;
+            document.getElementById('instanceB').textContent = stats.instanceB;
+            
+            const avgTime = stats.responseTimes.reduce((a, b) => a + b, 0) / stats.responseTimes.length;
+            document.getElementById('avgTime').textContent = Math.round(avgTime) + 'ms';
+        }
+
+        function displayResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            let className = '';
+            
+            if (type === 'app1') className = 'instance-a';
+            else if (type === 'app2') className = 'instance-b';
+            
+            element.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\\n`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            stats = { total: 0, instanceA: 0, instanceB: 0, responseTimes: [] };
+            document.getElementById('totalRequests').textContent = '0';
+            document.getElementById('instanceA').textContent = '0';
+            document.getElementById('instanceB').textContent = '0';
+            document.getElementById('avgTime').textContent = '0ms';
+        }
+    </script>
+</body>
+</html>
