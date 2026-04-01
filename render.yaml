@@ -2,8 +2,8 @@ services:
   - type: web
     name: load-balancer-app
     runtime: node
-    buildCommand: cd app && npm install
-    startCommand: cd app && npm start
+    buildCommand: npm install
+    startCommand: npm start
     plan: starter
     healthCheckPath: /health
     autoDeploy: true
