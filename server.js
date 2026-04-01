@@ -321,9 +321,10 @@ app.get('/', (req, res) => {
         
         <div class="action-buttons">
             <a href="/health" class="btn">🏥 Advanced Health Check</a>
-            <a href="/metrics" class="btn">📊 Real-time Metrics</a>
+            <a href="/metrics-dashboard" class="btn">📊 Metrics Dashboard</a>
             <a href="/load" class="btn">⚡ Performance Test</a>
             <a href="/dashboard" class="btn">📈 Live Dashboard</a>
+            <a href="/ai-demo" class="btn">🤖 AI API Demo</a>
             <button class="btn" onclick="location.reload()">🔄 Switch Server</button>
         </div>
         
@@ -804,17 +805,331 @@ app.get('/health', (req, res) => {
   `);
 });
 
-// Enhanced Metrics
+// Enhanced Metrics with fallback
 app.get('/metrics', (req, res) => {
   try {
+    // Try to get Prometheus metrics first
+    const prometheusMetrics = register.metrics();
     res.set('Content-Type', register.contentType);
-    res.end(register.metrics());
+    res.end(prometheusMetrics);
   } catch (error) {
-    res.status(500).send('Metrics temporarily unavailable');
+    console.error('Prometheus metrics error:', error);
+    
+    // Fallback to custom metrics display
+    const customMetrics = generateCustomMetrics();
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.send(customMetrics);
   }
 });
 
-// Enhanced Load Test
+// Generate custom metrics as fallback
+function generateCustomMetrics() {
+  const uptime = Math.floor(process.uptime());
+  const memory = process.memoryUsage();
+  const avgResponseTime = responseTimeHistory.length > 0 
+    ? Math.round(responseTimeHistory.reduce((a,b) => a+b, 0) / responseTimeHistory.length) 
+    : 0;
+  
+  return `# HELP nodejs_load_balancer_info Load Balancer System Information
+# TYPE nodejs_load_balancer_info gauge
+nodejs_load_balancer_uptime_seconds ${uptime}
+nodejs_load_balancer_requests_total ${requestCount}
+nodejs_load_balancer_errors_total ${errorCount}
+nodejs_load_balancer_memory_heap_used_bytes ${memory.heapUsed}
+nodejs_load_balancer_memory_heap_total_bytes ${memory.heapTotal}
+nodejs_load_balancer_memory_rss_bytes ${memory.rss}
+nodejs_load_balancer_response_time_avg_ms ${avgResponseTime}
+nodejs_load_balancer_instance_id{instance="${INSTANCE_ID}"} 1
+nodejs_load_balancer_cpu_cores ${os.cpus().length}
+nodejs_load_balancer_total_memory_bytes ${os.totalmem()}
+nodejs_load_balancer_free_memory_bytes ${os.freemem()}
+nodejs_load_balancer_load_average_1m ${os.loadavg()[0]}
+nodejs_load_balancer_load_average_5m ${os.loadavg()[1]}
+nodejs_load_balancer_load_average_15m ${os.loadavg()[2]}
+nodejs_load_balancer_platform{platform="${os.platform()}"} 1
+nodejs_load_balancer_arch{arch="${os.arch()}"} 1
+nodejs_load_balancer_node_version{version="${process.version}"} 1
+nodejs_load_balancer_process_id ${process.pid}
+nodejs_load_balancer_start_time_seconds ${Math.floor(startTime / 1000)}
+`;
+}
+
+// Beautiful Metrics Dashboard
+app.get('/metrics-dashboard', (req, res) => {
+  const uptime = Math.floor(process.uptime());
+  const memory = process.memoryUsage();
+  const avgResponseTime = responseTimeHistory.length > 0 
+    ? Math.round(responseTimeHistory.reduce((a,b) => a+b, 0) / responseTimeHistory.length) 
+    : 0;
+  
+  res.send(`
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Metrics - Load Balancer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .metrics-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .metrics-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .metrics-title {
+            font-size: 3em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #3498DB, #2980B9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        .metric-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        }
+        .metric-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #3498DB;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            color: #E74C3C;
+        }
+        .metric-desc {
+            text-align: center;
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+        .metric-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .metric-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27AE60, #F39C12, #E74C3C);
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+        .raw-metrics {
+            background: rgba(0,0,0,0.4);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 30px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status-good { color: #27AE60; }
+        .status-warning { color: #F39C12; }
+        .status-critical { color: #E74C3C; }
+    </style>
+</head>
+<body>
+    <div class="metrics-container">
+        <div class="metrics-header">
+            <h1 class="metrics-title">📊 System Metrics</h1>
+            <p style="font-size: 1.2em; opacity: 0.9;">Real-time Performance & Resource Monitoring</p>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">🚀 Server Instance</div>
+                <div class="metric-value">${INSTANCE_ID.slice(-6)}</div>
+                <div class="metric-desc">Unique server identifier</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">⏱️ Uptime</div>
+                <div class="metric-value">${uptime}s</div>
+                <div class="metric-desc">Server running time</div>
+                <div class="metric-bar">
+                    <div class="metric-fill" style="width: ${Math.min(uptime / 100, 100)}%;"></div>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">📊 Total Requests</div>
+                <div class="metric-value">${requestCount}</div>
+                <div class="metric-desc">HTTP requests processed</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">❌ Error Count</div>
+                <div class="metric-value status-${errorCount === 0 ? 'good' : errorCount < 5 ? 'warning' : 'critical'}">${errorCount}</div>
+                <div class="metric-desc">Failed requests</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">💾 Heap Memory</div>
+                <div class="metric-value">${Math.round(memory.heapUsed / 1024 / 1024)}MB</div>
+                <div class="metric-desc">Used: ${Math.round(memory.heapUsed / 1024 / 1024)}MB / Total: ${Math.round(memory.heapTotal / 1024 / 1024)}MB</div>
+                <div class="metric-bar">
+                    <div class="metric-fill" style="width: ${(memory.heapUsed / memory.heapTotal) * 100}%;"></div>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">📈 RSS Memory</div>
+                <div class="metric-value">${Math.round(memory.rss / 1024 / 1024)}MB</div>
+                <div class="metric-desc">Resident Set Size</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">⚡ Avg Response Time</div>
+                <div class="metric-value status-${avgResponseTime < 50 ? 'good' : avgResponseTime < 200 ? 'warning' : 'critical'}">${avgResponseTime}ms</div>
+                <div class="metric-desc">Average request latency</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">🖥️ CPU Cores</div>
+                <div class="metric-value">${os.cpus().length}</div>
+                <div class="metric-desc">Available CPU cores</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">💿 System Memory</div>
+                <div class="metric-value">${Math.round(os.totalmem() / 1024 / 1024 / 1024)}GB</div>
+                <div class="metric-desc">Free: ${Math.round(os.freemem() / 1024 / 1024 / 1024)}GB</div>
+                <div class="metric-bar">
+                    <div class="metric-fill" style="width: ${((os.totalmem() - os.freemem()) / os.totalmem()) * 100}%;"></div>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">📊 Load Average</div>
+                <div class="metric-value">${os.loadavg()[0].toFixed(2)}</div>
+                <div class="metric-desc">1m: ${os.loadavg()[0].toFixed(2)} | 5m: ${os.loadavg()[1].toFixed(2)} | 15m: ${os.loadavg()[2].toFixed(2)}</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">🔢 Process ID</div>
+                <div class="metric-value">${process.pid}</div>
+                <div class="metric-desc">System process identifier</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">🌐 Platform Info</div>
+                <div class="metric-value">${os.platform()}</div>
+                <div class="metric-desc">${os.arch()} | Node ${process.version}</div>
+            </div>
+        </div>
+        
+        <div class="raw-metrics">
+            <h3 style="color: #3498DB; margin-bottom: 15px;">📋 Raw Prometheus Metrics Format</h3>
+            <div style="white-space: pre-line;">
+# Server Instance Information
+nodejs_load_balancer_instance_id{instance="${INSTANCE_ID}"} 1
+nodejs_load_balancer_uptime_seconds ${uptime}
+nodejs_load_balancer_requests_total ${requestCount}
+nodejs_load_balancer_errors_total ${errorCount}
+
+# Memory Metrics
+nodejs_load_balancer_memory_heap_used_bytes ${memory.heapUsed}
+nodejs_load_balancer_memory_heap_total_bytes ${memory.heapTotal}
+nodejs_load_balancer_memory_rss_bytes ${memory.rss}
+
+# Performance Metrics
+nodejs_load_balancer_response_time_avg_ms ${avgResponseTime}
+nodejs_load_balancer_cpu_cores ${os.cpus().length}
+nodejs_load_balancer_total_memory_bytes ${os.totalmem()}
+nodejs_load_balancer_free_memory_bytes ${os.freemem()}
+
+# Load Average
+nodejs_load_balancer_load_average_1m ${os.loadavg()[0]}
+nodejs_load_balancer_load_average_5m ${os.loadavg()[1]}
+nodejs_load_balancer_load_average_15m ${os.loadavg()[2]}
+
+# System Information
+nodejs_load_balancer_platform{platform="${os.platform()}"} 1
+nodejs_load_balancer_arch{arch="${os.arch()}"} 1
+nodejs_load_balancer_node_version{version="${process.version}"} 1
+nodejs_load_balancer_process_id ${process.pid}
+nodejs_load_balancer_start_time_seconds ${Math.floor(startTime / 1000)}
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin: 40px 0;">
+            <a href="/" style="
+                background: rgba(255,255,255,0.2);
+                border: 2px solid rgba(255,255,255,0.3);
+                color: white;
+                padding: 15px 30px;
+                border-radius: 25px;
+                text-decoration: none;
+                font-size: 1.1em;
+                font-weight: bold;
+                margin: 0 10px;
+            ">🏠 Back to Home</a>
+            <a href="/metrics" style="
+                background: rgba(255,255,255,0.2);
+                border: 2px solid rgba(255,255,255,0.3);
+                color: white;
+                padding: 15px 30px;
+                border-radius: 25px;
+                text-decoration: none;
+                font-size: 1.1em;
+                font-weight: bold;
+                margin: 0 10px;
+            ">📊 Raw Metrics</a>
+            <button onclick="location.reload()" style="
+                background: rgba(255,255,255,0.2);
+                border: 2px solid rgba(255,255,255,0.3);
+                color: white;
+                padding: 15px 30px;
+                border-radius: 25px;
+                font-size: 1.1em;
+                font-weight: bold;
+                margin: 0 10px;
+                cursor: pointer;
+            ">🔄 Refresh Metrics</button>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-refresh every 10 seconds
+        setTimeout(() => location.reload(), 10000);
+    </script>
+</body>
+</html>
+  `);
+});
 app.get('/load', (req, res) => {
   const start = Date.now();
   const iterations = 2000000;
